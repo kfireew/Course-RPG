@@ -11,14 +11,19 @@ namespace RPG.Character
     {
         [NonSerialized]
         public Vector3 originalForwardVector;
+        [NonSerialized]
+        public bool isMoving = false;
 
         private NavMeshAgent agent;
+        private Animator animatorCmp;
 
-        public Vector3 movementVector;
+        private Vector3 movementVector;
+        private bool clampAnimationSpeedAgain = true;
 
         protected void Awake()
         {
             agent = GetComponent<NavMeshAgent>();
+            animatorCmp = GetComponentInChildren<Animator>();
 
             originalForwardVector = transform.forward;
         }
@@ -30,8 +35,9 @@ namespace RPG.Character
 
         protected void Update()
         {
-            print(movementVector);
             MovePlayer();
+            MovementAnimator();
+
             if (CompareTag(Constants.PLAYER_TAG)) Rotate(movementVector);
         }
 
@@ -43,6 +49,9 @@ namespace RPG.Character
 
         public void HandleMove(InputAction.CallbackContext context)
         {
+            if (context.performed) isMoving = true;
+            if (context.canceled) isMoving = false;
+
             Vector2 input = context.ReadValue<Vector2>();
             movementVector = new Vector3(input.x, 0, input.y);
         }
@@ -64,6 +73,7 @@ namespace RPG.Character
         public void MoveAgentByDestination(Vector3 destination)
         {
             agent.SetDestination(destination);
+            isMoving = true;
         }
 
         public void StopMovingAgent()
@@ -85,11 +95,31 @@ namespace RPG.Character
         public void MoveAgentByOffset(Vector3 offset)
         {
             agent.Move(offset);
+            isMoving = true;
         }
 
-        public void UpdateAgentSpeed(float newSpeed)
+        public void UpdateAgentSpeed(float newSpeed, bool shouldClampSpeed)
         {
             agent.speed = newSpeed;
+            clampAnimationSpeedAgain = shouldClampSpeed;
+        }
+
+        private void MovementAnimator()
+        {
+            float speed = animatorCmp.GetFloat(Constants.SPEED_ANIMATOR_PARAM);
+            float smoothening = Time.deltaTime * agent.acceleration;
+
+            if (isMoving)
+                speed += smoothening;
+            else
+                speed -= smoothening;
+
+            speed = Mathf.Clamp01(speed);
+            if (CompareTag(Constants.ENEMY_TAG) && clampAnimationSpeedAgain)
+            {
+                speed = Mathf.Clamp(speed, 0f, 0.5f);
+            }
+            animatorCmp.SetFloat(Constants.SPEED_ANIMATOR_PARAM, speed);
         }
     }
 }
